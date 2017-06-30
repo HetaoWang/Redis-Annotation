@@ -160,7 +160,15 @@ robj *createStringObjectFromLongDouble(long double value, int humanfriendly) {
 	return createStringObject(buf, len); 
 }
 
-
+/* Duplicate a string object, with the guarantee that the returned object
+ * hash the same encoding as the original one. 
+ *
+ * This function also guarantees that duplicating a small integer object 
+ * (or a string object contains a representation of a small integer)
+ * will always result in a fresh object that is unshared (refcount == 1)
+ * 对于 <OBJ_SHARED_INTEGERS 的整数，该函数也会创建一个新的robj，而不会复用 shared integer
+ * 
+ * The resulting object always has refcount set to 1. */
 robj *dupStringObject(robj *o) {
 	robj *d; 
 
@@ -256,6 +264,15 @@ void freeStringObject(robj *o) {
 	}
 }
 
+/* list支持的编码方式只有 quicklist ？？ */
+void freeListObject(robj *o) {
+	if (o->encoding == OBJ_ENCODING_QUICKLIST) {
+		quicklistRelease(o->ptr); 
+	} else {
+		serverPanic("Unknown list encoding type"); 
+	}
+}
+
 /* set支持的编码方式有 OBJ_ENCODING_HT 和 OBJ_ENCODING_INTSET */
 void freeSetObject(robj *o) {
 	switch (o->encoding) {
@@ -302,7 +319,26 @@ void freeHashObject(robj *o) {
 	}
 }
 
+void incrRefCount(robj *o) {
+	o->refcoung++; 
+}
 
+void decrRefCount(robj *o) {
+	if (o->refcount <= 0) serverPanic("decrRefCount against refcount <= 0"); 
+	if (o->refcount == 1) {
+		switch (o->type) {
+			case OBJ_STRING: freeStringObject(o); break; 
+			case OBJ_LIST: freeListObject(o); break; 
+			case OBJ_SET: freeSetObject(o); break; 
+			case OBJ_ZSET: freeZsetObject(o); break; 
+			case OBJ_HASH: freeHashObject(o); break; 
+			default: serverPanic("Unknown object type"); break; 
+		}
+		zfree(o);        // 释放对象本身
+	} else {
+		o->refcount--;
+	}
+}
 
 
 
