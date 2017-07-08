@@ -340,5 +340,36 @@ void decrRefCount(robj *o) {
 	}
 }
 
+/* This variant of decrRefCount() gets its argument as void, and is useful 
+ * as free method in data structs that expect a 'void free_object(void *)'
+ * prototype for the free method. */ 
+void decrRefCountVoid(void *o) {
+	decrRefCount(o); 
+}
+
+/* This function set the ref count to zero without freeing the object. 
+ * It is useful in order to pass a new object to functions incrementing 
+ * the ref count of the received object. Example: 
+ * 	  functionThatWillIncrementRefCount(resetRefCount(createObject(...)))
+ * Otherwise you need to resort to the less elegant pattern: 
+ *    
+ *    *obj = createObject(); */
+robj *resetRefCount(robj *o) {
+	o->refcount = 0; 
+	return o; 
+}
+
+/* 
+ * 检查对象o的类型是否为指定类型。如果类型不匹配就会给客户端发出一条警告并返回1.
+ * shared.wrongtypeerr的内容是“-WRONGTYPE Operation against a key holding the wrong kind of value”
+ */
+int checkType(client *c, robj *o, int type) {
+	if (o-> type != type) {
+		addReply(c, shared.wrongtypeerr); 
+		return 1; 
+	}
+	return 0; 
+}
+
 
 
